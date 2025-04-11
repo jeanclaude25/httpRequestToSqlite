@@ -9,11 +9,13 @@ const { Database } = sqlite3.verbose();
 // Fonction pour faire la requête HTTP avec fetch
 async function fetchData(url) {
     const abortController = new AbortController();
-    
+
     try {
         const response = await fetch(url, {
             method: "GET",
+            //credentials: "include",
             headers: {
+                //Authorization: `Bearer ${process.env.TOKEN}`,
                 "Accept": "application/json",
                 "Content-Type": "application/json",
             },

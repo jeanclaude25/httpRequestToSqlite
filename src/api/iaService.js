@@ -43,10 +43,14 @@ export async function analyzeImage(imagePath) {
         // Encoder l'image en base64
         const base64Image = encodeImageToBase64(imagePath);
         
-        // Préparer le prompt pour chaque langue
-        const prompt = "Please analyze this product image. Describe the article, its color, material, brand and include any visible numbers. " +
-                      "Provide a concise one-line description in three languages: 1) English (EN), 2) French (FR), and 3) German (DE). " +
-                      "Format your response exactly as: EN: [English description] FR: [French description] DE: [German description]";
+        // Préparer un prompt plus précis
+        const prompt = 
+            "First, check if this is a 'LIQUIDATION' stamp/image. " +
+            "If you see a red 'LIQUIDATION' stamp or text, respond ONLY with: " +
+            "EN: LIQUIDATION FR: LIQUIDATION DE: LIQUIDATION " +
+            "Otherwise, analyze the product image normally. Describe the article, its color, material, brand, and include any visible numbers. " +
+            "Provide a concise one-line description in three languages: " +
+            "EN: [English description] FR: [French description] DE: [German description]";
         
         // Construire la requête pour l'API
         const requestBody = {
@@ -66,7 +70,7 @@ export async function analyzeImage(imagePath) {
                     ]
                 }
             ],
-            temperature: 0.7,
+            temperature: 0.5, // Température réduite pour une réponse plus déterministe
             max_tokens: -1, // Pas de limite de tokens pour la réponse
             stream: false
         };
@@ -91,9 +95,19 @@ export async function analyzeImage(imagePath) {
         // Extraire la réponse générative
         const aiResponse = result.choices[0].message.content;
         
-        // Analyser la réponse pour extraire les descriptions dans chaque langue
-        const descriptions = parseAiResponse(aiResponse);
+        // Vérifier si la réponse correspond au format LIQUIDATION
+        if (aiResponse.includes('EN: LIQUIDATION') && 
+            aiResponse.includes('FR: LIQUIDATION') && 
+            aiResponse.includes('DE: LIQUIDATION')) {
+            return {
+                en: 'LIQUIDATION',
+                fr: 'LIQUIDATION',
+                de: 'LIQUIDATION'
+            };
+        }
         
+        // Sinon, analyser la réponse pour extraire les descriptions normales
+        const descriptions = parseAiResponse(aiResponse);
         return descriptions;
     } catch (error) {
         console.error(`Erreur lors de l'analyse de l'image: ${error.message}`);

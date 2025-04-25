@@ -111,10 +111,17 @@ export async function processArticlesWithAI(db) {
                 const updateSuccess = await updateArticleDescriptions(db, article.id, descriptions);
                 
                 if (updateSuccess) {
-                    console.log(`Article ${article.id}: Descriptions mises à jour avec succès:`);
-                    console.log(`  EN: ${descriptions.en.substring(0, 50)}...`);
-                    console.log(`  FR: ${descriptions.fr.substring(0, 50)}...`);
-                    console.log(`  DE: ${descriptions.de.substring(0, 50)}...`);
+                    // Vérifier si c'est une détection de LIQUIDATION
+                    if (descriptions.en === 'LIQUIDATION' && 
+                        descriptions.fr === 'LIQUIDATION' && 
+                        descriptions.de === 'LIQUIDATION') {
+                        console.log(`Article ${article.id}: LIQUIDATION DÉTECTÉE ✓`);
+                    } else {
+                        console.log(`Article ${article.id}: Descriptions mises à jour avec succès:`);
+                        console.log(`  EN: ${descriptions.en.substring(0, 50)}...`);
+                        console.log(`  FR: ${descriptions.fr.substring(0, 50)}...`);
+                        console.log(`  DE: ${descriptions.de.substring(0, 50)}...`);
+                    }
                     processedCount++;
                 } else {
                     console.error(`Article ${article.id}: Échec de la mise à jour des descriptions`);

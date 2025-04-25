@@ -36,21 +36,45 @@ export function encodeImageToBase64(imagePath) {
 /**
  * Analyse une image avec le modèle d'IA
  * @param {string} imagePath - Chemin de l'image à analyser
- * @returns {Promise<Object>} - Résultat de l'analyse avec les descriptions en 3 langues
+ * @param {Object} articleInfo - Informations sur l'article (nom, description, etc.)
+ * @returns {Promise<Object>} - Résultat de l'analyse avec les descriptions en 3 langues et mots-clés
  */
-export async function analyzeImage(imagePath) {
+export async function analyzeImage(imagePath, articleInfo = null) {
     try {
         // Encoder l'image en base64
         const base64Image = encodeImageToBase64(imagePath);
         
-        // Préparer un prompt plus précis
-        const prompt = 
-            "First, check if this is a 'LIQUIDATION' stamp/image. " +
-            "If you see a red 'LIQUIDATION' stamp or text, respond ONLY with: " +
-            "EN: LIQUIDATION FR: LIQUIDATION DE: LIQUIDATION " +
-            "Otherwise, analyze the product image normally. Describe the article, its color, material, brand, and include any visible numbers. " +
-            "Provide a concise one-line description in three languages: " +
-            "EN: [English description] FR: [French description] DE: [German description]";
+        // Préparer un prompt plus précis en fonction des informations de l'article
+        let prompt = "First, check if this is a 'LIQUIDATION' stamp/image. ";
+        prompt += "If you see a red 'LIQUIDATION' stamp or text, respond ONLY with: ";
+        prompt += "EN: LIQUIDATION FR: LIQUIDATION DE: LIQUIDATION ";
+        
+        // Si on a des informations sur l'article, les utiliser pour améliorer l'analyse
+        if (articleInfo) {
+            prompt += `Otherwise, I need you to analyze this product image. Here is what I know about it: 
+            - Product ID: ${articleInfo.id}
+            - Name: ${articleInfo.name || 'Unknown'}
+            - Description: ${articleInfo.description || 'No description available'}
+            
+            Focus ONLY on the SINGLE product described above that appears in the image. Provide the following:
+            
+            1. A concise one-line description in three languages without unnecessary connecting words:
+            EN: [Clear, concise English KEYWORDS only: [Provide a list of important keywords including colors, materials, brand, model numbers, and any distinguishing features, separated by commas. Do not use complete sentences.] focusing on visible attributes]
+            FR: [French translation of the same description]
+            DE: [German translation of the same description]
+
+            Be precise, focus on visible attributes, and avoid subjective opinions.`;
+        } else {
+            // Prompt par défaut si pas d'informations sur l'article
+            prompt += `Otherwise, analyze this product image. Focus on a single main product visible in the image.
+            
+            Provide the following:
+            
+            1. A concise one-line description in three languages without unnecessary connecting words:
+            EN: [Clear, concise English description]
+            FR: [French translation]
+            DE: [German translation]`;
+        }
         
         // Construire la requête pour l'API
         const requestBody = {
@@ -70,7 +94,7 @@ export async function analyzeImage(imagePath) {
                     ]
                 }
             ],
-            temperature: 0.5, // Température réduite pour une réponse plus déterministe
+            temperature: 0.3, // Température réduite pour une réponse plus déterministe
             max_tokens: -1, // Pas de limite de tokens pour la réponse
             stream: false
         };
@@ -106,7 +130,7 @@ export async function analyzeImage(imagePath) {
             };
         }
         
-        // Sinon, analyser la réponse pour extraire les descriptions normales
+        // Sinon, analyser la réponse pour extraire les descriptions et mots-clés
         const descriptions = parseAiResponse(aiResponse);
         return descriptions;
     } catch (error) {
@@ -116,9 +140,9 @@ export async function analyzeImage(imagePath) {
 }
 
 /**
- * Analyse la réponse de l'IA pour extraire les descriptions dans chaque langue
+ * Analyse la réponse de l'IA pour extraire les descriptions dans chaque langue et les mots-clés
  * @param {string} aiResponse - Réponse brute de l'IA
- * @returns {Object} - Objet contenant les descriptions par langue
+ * @returns {Object} - Objet contenant les descriptions par langue et les mots-clés
  */
 function parseAiResponse(aiResponse) {
     const result = {

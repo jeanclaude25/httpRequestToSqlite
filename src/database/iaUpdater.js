@@ -2,9 +2,10 @@ import path from 'path';
 import { executeQuery } from './db.js';
 import { analyzeImage } from '../api/iaService.js';
 import { fileExists, imageExists } from '../utils/fileChecker.js';
+import { config } from '../utils/config.js';
 
 /**
- * Met à jour les champs IA_EN, IA_FR et IA_DE pour un article
+ * Met à jour les champs IA_EN, IA_FR, IA_DE pour un article
  * @param {Database} db - Instance de la base de données
  * @param {number} articleId - ID de l'article à mettre à jour
  * @param {Object} descriptions - Descriptions générées par l'IA
@@ -14,7 +15,7 @@ async function updateArticleDescriptions(db, articleId, descriptions) {
     try {
         const query = `
             UPDATE items 
-            SET IA_EN = ?, IA_FR = ?, IA_DE = ? 
+            SET IA_EN = ?, IA_FR = ?, IA_DE = ?
             WHERE id = ?
         `;
         
@@ -57,12 +58,35 @@ async function hasDescriptions(db, articleId) {
 }
 
 /**
+ * Récupère les informations de l'article
+ * @param {Database} db - Instance de la base de données
+ * @param {number} articleId - ID de l'article
+ * @returns {Promise<Object>} - Informations de l'article
+ */
+async function getArticleInfo(db, articleId) {
+    try {
+        const query = "SELECT id, description FROM items WHERE id = ?";
+        const results = await executeQuery(db, query, [articleId]);
+        
+        if (results && results.length > 0) {
+            return results[0];
+        }
+        
+        return null;
+    } catch (error) {
+        console.error(`Erreur lors de la récupération des informations pour l'article ${articleId}: ${error.message}`);
+        return null;
+    }
+}
+
+/**
  * Analyse les images de tous les articles et met à jour les champs IA
  * @param {Database} db - Instance de la base de données
  * @returns {Promise<void>}
  */
 export async function processArticlesWithAI(db) {
     try {
+        
         // Récupérer tous les articles avec leurs URLs d'image
         const articles = await executeQuery(db, 'SELECT id, imageUrlSmall FROM items');
         console.log(`${articles.length} articles trouvés pour analyse IA`);
@@ -75,19 +99,29 @@ export async function processArticlesWithAI(db) {
         // Parcourir chaque article
         for (const article of articles) {
             try {
-                // Vérifier si l'article a déjà des descriptions
+                // Vérifier si l'article a déjà des descriptions et si on ne force pas l'analyse
                 const hasExistingDescriptions = await hasDescriptions(db, article.id);
                 
-                if (hasExistingDescriptions) {
+                if (hasExistingDescriptions && !config.forceIADescriptionAnalysis) {
                     console.log(`Article ${article.id}: Descriptions IA déjà existantes, ignoré`);
                     skipCount++;
                     continue;
+                } else if (hasExistingDescriptions && config.forceIADescriptionAnalysis) {
+                    console.log(`Article ${article.id}: Descriptions IA existantes, mais analyse forcée (FORCE_IA_DESCRIPTION_ANALYSIS=true)`);
                 }
                 
                 // Vérifier si l'article a une URL d'image
                 if (!article.imageUrlSmall) {
                     console.log(`Article ${article.id}: Pas d'URL d'image, ignoré`);
                     skipCount++;
+                    continue;
+                }
+                
+                // Récupérer les informations de l'article
+                const articleInfo = await getArticleInfo(db, article.id);
+                if (!articleInfo) {
+                    console.error(`Article ${article.id}: Impossible de récupérer les informations de l'article`);
+                    errorCount++;
                     continue;
                 }
                 
@@ -104,8 +138,8 @@ export async function processArticlesWithAI(db) {
                 
                 console.log(`Article ${article.id}: Analyse de l'image: ${fileName}`);
                 
-                // Analyser l'image avec l'IA
-                const descriptions = await analyzeImage(imagePath);
+                // Analyser l'image avec l'IA en incluant les informations de l'article
+                const descriptions = await analyzeImage(imagePath, articleInfo);
                 
                 // Mettre à jour la base de données
                 const updateSuccess = await updateArticleDescriptions(db, article.id, descriptions);
@@ -141,3 +175,4 @@ export async function processArticlesWithAI(db) {
         throw error;
     }
 }
+
